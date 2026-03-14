@@ -1,0 +1,17 @@
+packages:
+  "framer-motion": "For page transitions and fluid micro-interactions"
+  "react-markdown": "To render formatted markdown in AI chat responses"
+  "remark-gfm": "To support github flavored markdown like tables and lists in responses"
+  "date-fns": "For formatting human-readable relative timestamps"
+  "clsx": "For merging conditional Tailwind classes gracefully"
+  "tailwind-merge": "To resolve Tailwind class conflicts"
+
+images:
+  - path: "artifacts/ai-agent/public/images/empty-state-bg.png"
+    description: "Abstract ultra-minimalist dark background with subtle deep indigo and purple glowing orbs and soft mesh gradients, high-end premium software aesthetic"
+    aspect_ratio: "16:9"
+
+notes:
+  - Using pre-generated TanStack Query hooks from @workspace/api-client-react for standard CRUD operations
+  - Implementing custom fetch+ReadableStream for SSE streaming chat endpoint
+  - Using wouter for routing
