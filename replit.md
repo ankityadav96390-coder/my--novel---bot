@@ -15,6 +15,8 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **Validation**: Zod (`zod/v4`), `drizzle-zod`
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
+- **Python**: 3.12 (for Telegram Bot)
+- **Telegram Bot**: python-telegram-bot + Google Gemini API
 
 ## Structure
 
