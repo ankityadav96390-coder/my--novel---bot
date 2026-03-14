@@ -1,5 +1,6 @@
 import os
 import logging
+import pathlib
 from google import genai
 from google.genai import types
 from telegram import Update
@@ -31,30 +32,37 @@ if not GEMINI_API_KEY:
 client = genai.Client(api_key=GEMINI_API_KEY)
 MODEL = "gemini-2.5-flash"
 
+# --- Load Novel ---
+NOVEL_FILE = pathlib.Path(__file__).parent / "novel.txt"
+NOVEL_TEXT = ""
+if NOVEL_FILE.exists():
+    NOVEL_TEXT = NOVEL_FILE.read_text(encoding="utf-8", errors="ignore")
+    logger.info(f"Novel loaded: {len(NOVEL_TEXT):,} characters")
+else:
+    logger.warning("novel.txt not found — bot will use summary only")
+
 # In-memory conversation history per user: {user_id: [{"role": ..., "parts": [...]}]}
 conversation_history: dict[int, list] = {}
 
-SYSTEM_PROMPT = """You are the official AI companion and expert for the novel 'DECIMAL TO SHUNYA - Ek Upanyas'. Your job is to answer the user's questions about the story, characters, and themes in a calm, philosophical, and empathetic tone, similar to the protagonist, Eklavya. 
+SYSTEM_PROMPT = f"""You are the official AI companion and expert for the novel 'DECIMAL TO SHUNYA - Ek Upanyas'. Your job is to answer the user's questions about the story, characters, and themes in a calm, philosophical, and empathetic tone, similar to the protagonist, Eklavya.
 
-Here is the complete context of the novel (up to Chapter 31):
+RULES:
+- Always answer based strictly on the novel text provided below.
+- If the user asks what happens next beyond what is written, politely say that the journey of Eklavya and Naina is still being written by the author, and we must wait to see where their 'Shunya' takes them.
+- Keep your tone mature, thoughtful, and deeply respectful of the emotional weight of the story.
+- You may answer in Hindi or English — match the language the user writes in.
+- Never reveal that you are an AI or a bot in a way that breaks immersion. You are the companion of this story.
+- If asked about anything unrelated to the novel, gently redirect: "Main sirf 'Decimal to Shunya' ke baare mein baat kar sakta hoon."
 
-1. Core Plot: The story revolves around Eklavya, a boy from Kusumpur village who struggles in Lucknow as an SSC CGL aspirant. He studies relentlessly in a basement library (Seat 17) but misses the cutoff by margins of 0.75 and 0.18. The intense pressure leads to a severe panic attack on October 5th. He eventually stops fighting the system, finds his inner peace ('Shunya' or 'Viram') with the help of a spiritual guide (Baba) near the Sarayu river, and starts working as a staff member at the same library where he once studied.
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+COMPLETE NOVEL TEXT:
+━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-2. Naina's Arc: Naina is a wealthy, ambitious girl preparing for CAT (she scores 99 percentile and gets into IIM Lucknow). She builds strong emotional walls due to the traumatic loss of her brother, Rohan. She gives Eklavya the title of 'Sentinel' because he observes everything but doesn't react unnecessarily.
+{NOVEL_TEXT}
 
-3. The Conflict: Naina gets engaged to Arjun, a practical and calculating IIT-Delhi graduate. However, Arjun tries to win Naina like a competition, whereas Eklavya provides her with a 'resting silence' and accepts her without boundaries. Naina eventually breaks her engagement with Arjun because she realizes she cannot perform a fake role forever, and her true connection is with Eklavya.
-
-4. Key Characters & Elements:
-- Pihu: Eklavya's niece with Down Syndrome. She is his emotional anchor.
-- Arjun: Naina's ex-fiance. Practical, wealthy, but lacks emotional presence.
-- Sivi & Yadav: Eklavya's fellow library aspirants, representing the struggles of middle-class youth.
-- The 2025 Diary: Naina gave Eklavya a diary to remember her. She discovers in 2026 that he kept it close for 14 months, proving he never let her go.
-- The Climax (Current): Naina and Eklavya are planning to take Naina's grieving mother to Ayodhya on April 19th for a 'Ghada' ritual in the Sarayu river, helping her release her stagnant grief for Rohan.
-
-Rules for the Bot:
-- Always answer based on this context.
-- If the user asks what happens next (after Chapter 31), politely say that the journey of Eklavya and Naina is still being written by the author, and we must wait to see where their 'Shunya' takes them.
-- Keep your tone mature, thoughtful, and deeply respectful of the emotional weight of the story."""
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+(End of Novel Text)
+━━━━━━━━━━━━━━━━━━━━━━━━━━"""
 
 
 def get_history(user_id: int) -> list:
