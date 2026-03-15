@@ -33,120 +33,73 @@ if not GEMINI_API_KEY:
 client = genai.Client(api_key=GEMINI_API_KEY)
 MODEL = "gemini-2.5-flash"
 
-NOVEL_FILE_PATH = pathlib.Path(__file__).parent / "novel.txt"
+NOVEL_TEXT_PATH = pathlib.Path(__file__).parent / "novel_text.txt"
 
-# Short system instruction — NO novel text here (saves tokens every request)
-SYSTEM_INSTRUCTION = """You are the official AI companion and expert for the novel 'DECIMAL TO SHUNYA - Ek Upanyas'.
+# System instruction — short, no novel text (saves tokens every request)
+SYSTEM_INSTRUCTION = """You are the official AI companion and expert for the Hindi novel 'DECIMAL TO SHUNYA - Ek Upanyas'.
 
 YOUR RULES:
-- Answer ONLY based on the novel that has been shared with you at the start of the conversation.
+- Answer ONLY based on the novel text that is provided in the conversation.
 - Keep your tone calm, philosophical, and empathetic — like the protagonist Eklavya.
-- Match the language of the user (Hindi or English).
-- If asked what happens after the last chapter written, say: "Eklavya aur Naina ki yeh yatra abhi lekh rahi hai. Hum sirf intezaar kar sakte hain ki unka 'Shunya' unhe kahan le jaata hai."
-- If asked about ANYTHING unrelated to this novel, gently say: "Main sirf 'Decimal to Shunya' ke baare mein baat kar sakta hoon."
-- Never break immersion by saying you are an AI or a bot."""
+- Match the language the user writes in (Hindi or English).
+- If asked about what happens AFTER the novel ends, say: "Eklavya aur Naina ki yeh yatra abhi bhi likh rahi hai. Hum sirf intezaar kar sakte hain ki unka 'Shunya' unhe kahan le jaata hai."
+- If asked about ANYTHING unrelated to this novel, say: "Main sirf 'Decimal to Shunya' ke baare mein baat kar sakta hoon."
+- Never say you are an AI or break the immersion of being this novel's companion."""
 
-# --- File API: Upload novel once, reuse URI ---
-uploaded_novel: genai.types.File | None = None
-novel_upload_time: float = 0
-FILE_EXPIRY_SECONDS = 47 * 3600  # Gemini files expire after 48h; re-upload at 47h
+# --- Load novel text at startup ---
+NOVEL_TEXT = ""
+if NOVEL_TEXT_PATH.exists():
+    NOVEL_TEXT = NOVEL_TEXT_PATH.read_text(encoding="utf-8", errors="ignore")
+    logger.info(f"Novel text loaded: {len(NOVEL_TEXT):,} characters (~{len(NOVEL_TEXT)//4:,} tokens)")
+else:
+    logger.warning("novel_text.txt not found!")
 
+# Novel context part — included fresh in every request (NOT in history)
+# This keeps conversation history small while novel context is always present.
+NOVEL_CONTEXT_INTRO = (
+    "=== DECIMAL TO SHUNYA - EK UPANYAS (COMPLETE TEXT) ===\n\n"
+    + NOVEL_TEXT
+    + "\n\n=== UPANYAS KHATAM HOTA HAI YAHAN ==="
+)
 
-def upload_novel() -> genai.types.File | None:
-    global uploaded_novel, novel_upload_time
-    if not NOVEL_FILE_PATH.exists():
-        logger.error("novel.txt not found!")
-        return None
-    try:
-        logger.info("Novel को Gemini File API पर upload कर रहे हैं...")
-        file_obj = client.files.upload(
-            file=str(NOVEL_FILE_PATH),
-            config={"mime_type": "text/plain", "display_name": "Decimal To Shunya - Ek Upanyas"},
-        )
-        # Wait until file is ACTIVE
-        for _ in range(30):
-            file_obj = client.files.get(name=file_obj.name)
-            if file_obj.state.name == "ACTIVE":
-                break
-            logger.info("File processing... wait kar rahe hain")
-            time.sleep(3)
-
-        uploaded_novel = file_obj
-        novel_upload_time = time.time()
-        logger.info(f"Novel upload successful! URI: {file_obj.uri}")
-        return file_obj
-    except Exception as e:
-        logger.error(f"Novel upload failed: {e}")
-        return None
-
-
-def get_novel_file() -> genai.types.File | None:
-    """Return cached file, re-uploading if expired."""
-    global uploaded_novel, novel_upload_time
-    if uploaded_novel is None or (time.time() - novel_upload_time) > FILE_EXPIRY_SECONDS:
-        return upload_novel()
-    return uploaded_novel
-
-
-# --- Conversation history per user ---
-# Each history starts with a seeded "file context" turn so the file is only
-# referenced once per conversation, not on every single request.
+# --- Conversation history per user (only actual messages, no novel text) ---
 conversation_history: dict[int, list] = {}
 
-
-def seed_history(user_id: int):
-    """Seed a new conversation with the novel file as context (only once per chat)."""
-    novel_file = get_novel_file()
-    if novel_file:
-        conversation_history[user_id] = [
-            types.Content(
-                role="user",
-                parts=[
-                    types.Part(
-                        file_data=types.FileData(
-                            file_uri=novel_file.uri,
-                            mime_type="text/plain",
-                        )
-                    ),
-                    types.Part(
-                        text=(
-                            "Yeh 'DECIMAL TO SHUNYA - Ek Upanyas' ka poora text hai. "
-                            "Ise dhyan se padho aur apni puri conversation mein isi ke "
-                            "aadhar par jawab do."
-                        )
-                    ),
-                ],
-            ),
-            types.Content(
-                role="model",
-                parts=[
-                    types.Part(
-                        text=(
-                            "Maine poora upanyas padh liya hai. Aap Eklavya, Naina, Pihu, "
-                            "Arjun, Baba, Sivi, Yadav — kisi bhi paatra ya ghatna ke baare "
-                            "mein pooch sakte hain. Main aapka intezaar kar raha tha. 🙏"
-                        )
-                    )
-                ],
-            ),
-        ]
-    else:
-        # Fallback if upload failed
-        conversation_history[user_id] = []
+MAX_HISTORY = 16  # keep last 16 turns (8 exchanges)
 
 
 def get_history(user_id: int) -> list:
-    if user_id not in conversation_history:
-        seed_history(user_id)
-    return conversation_history[user_id]
+    return conversation_history.get(user_id, [])
 
 
 def add_message(user_id: int, role: str, text: str):
-    history = get_history(user_id)
-    history.append(types.Content(role=role, parts=[types.Part(text=text)]))
-    # Keep seed (first 2 items) + last 18 messages to cap context
-    if len(history) > 20:
-        conversation_history[user_id] = history[:2] + history[-18:]
+    if user_id not in conversation_history:
+        conversation_history[user_id] = []
+    conversation_history[user_id].append(
+        types.Content(role=role, parts=[types.Part(text=text)])
+    )
+    # Keep only last MAX_HISTORY turns to prevent context growth
+    if len(conversation_history[user_id]) > MAX_HISTORY:
+        conversation_history[user_id] = conversation_history[user_id][-MAX_HISTORY:]
+
+
+def build_contents(user_id: int) -> list:
+    """
+    Build the contents list for Gemini.
+    Structure:
+      1. Novel text as a 'user' turn (fresh each time, NOT stored in history)
+      2. A short model acknowledgment
+      3. Actual conversation history (small, only real messages)
+    """
+    novel_turn = types.Content(
+        role="user",
+        parts=[types.Part(text=NOVEL_CONTEXT_INTRO)],
+    )
+    ack_turn = types.Content(
+        role="model",
+        parts=[types.Part(text="Maine poora 'Decimal to Shunya' padh liya hai. Aap koi bhi sawal poochh sakte hain.")],
+    )
+    return [novel_turn, ack_turn] + get_history(user_id)
 
 
 # --- Command Handlers ---
@@ -154,8 +107,7 @@ def add_message(user_id: int, role: str, text: str):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     name = user.first_name or "मित्र"
-    # Pre-seed conversation so first message is fast
-    seed_history(update.effective_user.id)
+    conversation_history.pop(update.effective_user.id, None)
     await update.message.reply_text(
         f"नमस्ते {name}! 🙏\n\n"
         "मैं *DECIMAL TO SHUNYA - Ek Upanyas* का आधिकारिक AI साथी हूँ।\n\n"
@@ -204,15 +156,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         chat_id=update.effective_chat.id, action="typing"
     )
 
+    # Add user message to (small) history
     add_message(user_id, "user", user_text)
+
+    # Build full contents: novel + conversation
+    contents = build_contents(user_id)
 
     try:
         response = client.models.generate_content(
             model=MODEL,
-            contents=get_history(user_id),
+            contents=contents,
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_INSTRUCTION,
-                max_output_tokens=1024,  # Concise answers save output tokens too
+                max_output_tokens=1024,
                 temperature=0.7,
             ),
         )
@@ -220,7 +176,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply = response.text or "माफ करें, मैं अभी जवाब नहीं दे सका। कृपया दोबारा कोशिश करें।"
         add_message(user_id, "model", reply)
 
-        # Telegram message limit is 4096 chars
         if len(reply) <= 4096:
             await update.message.reply_text(reply)
         else:
@@ -229,18 +184,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         logger.error(f"Gemini API error: {e}")
-        # If file expired, reset history so it re-uploads on next message
-        if "file" in str(e).lower() or "invalid" in str(e).lower():
-            global uploaded_novel
-            uploaded_novel = None
+        err_msg = str(e)
+        if "token" in err_msg.lower():
+            # Token overflow — trim history and retry
             conversation_history.pop(user_id, None)
             await update.message.reply_text(
-                "⚠️ Novel context refresh हो रही है। कृपया दोबारा लिखें।"
+                "⚠️ बातचीत बहुत लंबी हो गई थी — /new लिखकर नई शुरुआत करें।"
             )
         else:
             await update.message.reply_text(
                 "❌ कुछ गड़बड़ हो गई। कृपया थोड़ी देर बाद फिर कोशिश करें।\n\n"
-                f"Error: {str(e)[:200]}"
+                f"Error: {err_msg[:200]}"
             )
 
 
@@ -249,8 +203,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     logger.info("Bot शुरू हो रहा है...")
 
-    # Upload novel at startup
-    upload_novel()
+    if not NOVEL_TEXT:
+        logger.error("Novel text not found — bot will not work properly!")
+    else:
+        logger.info(f"Novel ready: {len(NOVEL_TEXT):,} chars")
 
     app = Application.builder().token(TELEGRAM_TOKEN).build()
 
