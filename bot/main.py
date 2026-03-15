@@ -35,16 +35,50 @@ MODEL = "gemini-2.5-flash"
 
 NOVEL_TEXT_PATH = pathlib.Path(__file__).parent / "novel_text.txt"
 
-# System instruction — short, no novel text (saves tokens every request)
-SYSTEM_INSTRUCTION = """You are the official AI companion and expert for the Hindi novel 'DECIMAL TO SHUNYA - Ek Upanyas'.
+# System instruction — Media Manager persona
+SYSTEM_INSTRUCTION = """You are the dedicated AI Media Manager and Marketing Strategist for the Hindi novel 'DECIMAL TO SHUNYA - Ek Upanyas' by its author.
 
-YOUR RULES:
-- Answer ONLY based on the novel text that is provided in the conversation.
-- Keep your tone calm, philosophical, and empathetic — like the protagonist Eklavya.
-- Match the language the user writes in (Hindi or English).
-- If asked about what happens AFTER the novel ends, say: "Eklavya aur Naina ki yeh yatra abhi bhi likh rahi hai. Hum sirf intezaar kar sakte hain ki unka 'Shunya' unhe kahan le jaata hai."
-- If asked about ANYTHING unrelated to this novel, say: "Main sirf 'Decimal to Shunya' ke baare mein baat kar sakta hoon."
-- Never say you are an AI or break the immersion of being this novel's companion."""
+YOUR IDENTITY:
+- You are a sharp, creative, and passionate media manager whose ONLY goal is to make this novel a bestseller.
+- You know the novel inside out (the full text is provided in every conversation).
+- You speak in Hindi or English — match whatever language the user writes in.
+- You are enthusiastic, strategic, and deeply connected to the story and its emotional power.
+
+YOUR CAPABILITIES — Help the author with:
+
+1. SOCIAL MEDIA CONTENT
+   - Write Instagram captions, reels scripts, story ideas based on novel quotes/scenes
+   - Create Twitter/X threads that hook new readers
+   - Suggest trending hashtags relevant to the novel's themes
+
+2. MARKETING STRATEGY
+   - Suggest launch strategies, pre-launch buzz plans
+   - Identify the target audience (SSC aspirants, youth, Hindi literature lovers)
+   - Advise on collaborations (bookstagrammers, YouTube reviewers, Hindi podcasts)
+   - Suggest pricing, launch offers, signed copy campaigns
+
+3. CONTENT CREATION
+   - Write compelling book blurbs and back-cover text
+   - Create reader testimonial templates
+   - Draft press releases and media pitches
+   - Write author bio and interview Q&A prep
+
+4. READER ENGAGEMENT
+   - Design reading challenges and community activities
+   - Suggest Telegram/WhatsApp community strategies
+   - Create discussion questions for book clubs
+
+5. NOVEL KNOWLEDGE
+   - Answer any question about the story, characters, themes
+   - Suggest which scenes/quotes are most marketable
+   - Identify the most emotionally powerful moments to highlight in promotions
+
+RULES:
+- Always think like a bestseller campaign manager — every suggestion should serve the goal of maximum reach.
+- Be specific and actionable, not vague.
+- Use the novel text provided to create accurate, authentic content.
+- If asked something completely unrelated to the novel or its promotion, gently redirect.
+- Never reveal confidential plot twists in public-facing content without the author's direction."""
 
 # --- Load novel text at startup ---
 NOVEL_TEXT = ""
@@ -106,34 +140,55 @@ def build_contents(user_id: int) -> list:
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    name = user.first_name or "मित्र"
+    name = user.first_name or "Author"
     conversation_history.pop(update.effective_user.id, None)
     await update.message.reply_text(
-        f"नमस्ते {name}! 🙏\n\n"
-        "मैं *DECIMAL TO SHUNYA - Ek Upanyas* का आधिकारिक AI साथी हूँ।\n\n"
-        "आप मुझसे इस उपन्यास के किसी भी पात्र, घटना, या भावना के बारे में पूछ सकते हैं।\n\n"
-        "एकलव्य की तरह — शांत, गहरा, और सच्चा। 📖\n\n"
+        f"नमस्ते {name}! 🚀\n\n"
+        "मैं *DECIMAL TO SHUNYA* का AI Media Manager हूँ।\n\n"
+        "मेरा एक ही मिशन है — आपकी novel को *Bestseller* बनाना। 📈\n\n"
+        "आप मुझसे पूछ सकते हैं:\n\n"
+        "📱 *Social Media* — Instagram captions, Reels scripts, Twitter threads\n"
+        "📣 *Marketing* — Launch strategy, target audience, collaborations\n"
+        "✍️ *Content* — Book blurb, press release, author bio\n"
+        "👥 *Readers* — Community building, engagement ideas\n"
+        "📖 *Novel* — किसी भी scene, character, quote के बारे में\n\n"
+        "बताइए — आज कहाँ से शुरू करें? 💡\n\n"
         "📌 Commands:\n"
-        "/start — Bot शुरू करें\n"
-        "/new — नई बातचीत शुरू करें\n"
-        "/help — मदद देखें",
+        "/start — नई session शुरू करें\n"
+        "/new — बातचीत reset करें\n"
+        "/help — सभी features देखें",
         parse_mode="Markdown",
     )
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "📖 *DECIMAL TO SHUNYA - AI Companion*\n\n"
-        "मैं इस उपन्यास का विशेष AI साथी हूँ। आप मुझसे पूछ सकते हैं:\n\n"
-        "• एकलव्य की यात्रा के बारे में\n"
-        "• नैना और एकलव्य के रिश्ते के बारे में\n"
-        "• पिहु, अर्जुन, सिवि, यादव जैसे पात्रों के बारे में\n"
-        "• उपन्यास की themes — Shunya, Viram, संघर्ष के बारे में\n\n"
+        "🎯 *DECIMAL TO SHUNYA — AI Media Manager*\n\n"
+        "मैं आपकी novel को bestseller बनाने के लिए हर कदम पर साथ हूँ:\n\n"
+        "📱 *Social Media Content*\n"
+        "  → Instagram post/reel/story ideas\n"
+        "  → Twitter/X viral threads\n"
+        "  → Hashtag strategy\n\n"
+        "📣 *Marketing & Launch*\n"
+        "  → Pre-launch buzz plan\n"
+        "  → Target audience analysis\n"
+        "  → Collaboration suggestions\n\n"
+        "✍️ *Content Creation*\n"
+        "  → Book blurb & back cover\n"
+        "  → Press release\n"
+        "  → Author bio & interview prep\n\n"
+        "👥 *Reader Community*\n"
+        "  → Telegram/WhatsApp group strategy\n"
+        "  → Book club discussion questions\n"
+        "  → Reader challenges\n\n"
+        "📖 *Novel Expertise*\n"
+        "  → Best marketable scenes & quotes\n"
+        "  → Character & theme analysis\n\n"
         "📌 *Commands:*\n"
-        "/start — Bot शुरू करें\n"
-        "/new — नई बातचीत शुरू करें\n"
-        "/help — यह help message\n\n"
-        "_'Decimal से Shunya तक — यह सिर्फ एक कहानी नहीं, एक यात्रा है।'_",
+        "/start — नई session\n"
+        "/new — बातचीत reset\n"
+        "/help — यह menu\n\n"
+        "_'Ek acchi kahani sirf likhi nahi jaati — usse duniya tak pohonchana bhi ek kala hai।'_ ✨",
         parse_mode="Markdown",
     )
 
